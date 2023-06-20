@@ -1,0 +1,9 @@
+- [ ] Allow serivce to run in a docker container (get pulse audio running inside a container)
+- [ ] Fix up the API so it supports multiple devices and device groups
+- [ ] Add some basic tests
+- [ ] Add chromecast functionality
+- [ ] Copy over the nginx and current Jackcast install script
+- [ ] Create a informative readme
+- [ ] Flesh out makefile
+- [ ] create easy to use uvicorn/application logger
+- [ ] Investigate latency issue and see if current sub process implementation calling `parec` and `lame` could be replaced/speed up
