@@ -1,8 +1,10 @@
 import subprocess
-from typing import List, Optional
-from fastapi import FastAPI, Form, Request
+from typing import List, Optional, Union
+from fastapi import FastAPI, Form, Request, Response
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from config import config
+from schemas import SpeakerUpdate
 from speakers import Speaker
 from speakers.sonos import Sonos
 from templates import templates
@@ -28,22 +30,25 @@ api.mount("/static", StaticFiles(directory=config.STATIC_PATH), name="static")
 
 @api.get("/cast")
 async def cast():
-    # The following will proxy the null sink to the network
-    # This strategy was obtained from the following resources,
-    # * https://askubuntu.com/questions/60837/record-a-programs-output-with-
-    # pulseaudio
-    # * mkchromecast
+    def stream_audio_from_sink():
+        # The following will proxy the null sink to the network
+        # This strategy was obtained from the following resources,
+        # * https://askubuntu.com/questions/60837/record-a-programs-output-with-
+        # pulseaudio
+        # * mkchromecast
 
-    # Pulseaudio names the monitor after the module name appended with
-    # '.monitor'.
-    monitor_name = "{}.monitor".format("Jackcast")
-    # Record raw audio coming from the monitoring sink and output to stdout
-    parec = subprocess.Popen(["parec", "--format=s16le", "-d", monitor_name], stdout=subprocess.PIPE)
-    # Encode the raw audio recording to mp3 and output to stdout
-    lame = subprocess.Popen(["lame", "-b", "192", "-r", "-"], stdin=parec.stdout, stdout=subprocess.PIPE)
-    buf_size = 8192
-    while True:
-        yield lame.stdout.read(buf_size)
+        # Pulseaudio names the monitor after the module name appended with
+        # '.monitor'.
+        monitor_name = f"{config.PULSE_AUDIO_SINK_NAME}.monitor"
+        # Record raw audio coming from the monitoring sink and output to stdout
+        parec = subprocess.Popen(["parec", "--format=s16le", "-d", monitor_name], stdout=subprocess.PIPE)
+        # Encode the raw audio recording to mp3 and output to stdout
+        lame = subprocess.Popen(["lame", "-b", "192", "-r", "-"], stdin=parec.stdout, stdout=subprocess.PIPE)
+        buf_size = 8192
+        while True:
+            yield lame.stdout.read(buf_size)
+
+    return StreamingResponse(stream_audio_from_sink(), media_type="audio/mp3")
 
 
 @api.get("/api/volume")
@@ -61,10 +66,11 @@ async def set_volume(request: Request):
 
 
 @api.post("/api/speakers")
-def set_speakers(request: Request, devices: List[Speaker] = Form(...)):
-    devices = request.form.getlist("devices[]")
-
+async def set_speakers(request: Request):
+    form_data = await request.form()
+    devices = form_data.get("devices[]", [])
     if len(devices) > 0:
+        devices = [devices]
         # no grouping just play on that speaker
         jc.speaker.set_active(devices)
         jc.speaker.set_volume(jc.volume)
@@ -83,6 +89,12 @@ def get_speakers():
     return {"success": True, "speakers": speakers, "volume": jc.speaker.volume}
 
 
+# @api.put("/api/speakers/{name}")
+# def update_speaker(name: str, data: Optional[SpeakerUpdate]):
+#
+#
+
+
 @api.route("/")
 def index(request: Request):
-    return templates.TemplateResponse("item.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request})

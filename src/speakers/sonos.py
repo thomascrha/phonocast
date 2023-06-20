@@ -87,6 +87,7 @@ class Sonos(AudioNetwork):
         elif len(device_names) > 1:
             # Take the first device and make it the coordinator
             group = [soco.discovery.by_name(name) for name in device_names]
+            print(group)
             self.coordinator = group.pop()
             self.coordinator.unjoin()
             # log.debug("New coordinator:")
